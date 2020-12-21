@@ -1,4 +1,5 @@
 import os
+import argparse
 
 def parse(deck):
     main = {}
@@ -29,7 +30,7 @@ def parse(deck):
         else:
             if not cardname in side:
                 side[cardname] = int(quantity)
-    return main, side
+    return main, side, sum(main.values())
 
 def aggregate(lis, N):
     aggre = {}
@@ -43,9 +44,6 @@ def aggregate(lis, N):
                     aggre[aggre_name] += 1
     firstN = {}
     sorted_aggregate = sorted(list(aggre.items()), key=lambda x: x[1], reverse=True)
-    print(sorted_aggregate)
-    print()
-    print(sorted_aggregate[:N])
     for card, _ in sorted_aggregate[:N]:
         underline = card.find('_')
         cardname = card[:underline]
@@ -62,19 +60,37 @@ def writer(f, main, side):
     f.write('\nSideboard\n')
     for card in side:
         f.write(str(side[card]) + ' ' + card + '\n')
-    f.close
+    f.close()
 
-archetype = 'Esper Doom Foretold'
+parser = argparse.ArgumentParser(description='MTG deck aggregator')
+parser.add_argument('archetype', help='The name of the archetype to be aggregated, \
+must be the same with the name of folders containing the decks to be aggregated')
+parser.add_argument('-w', '--weighted', action='store_true')
+args = parser.parse_args()
+archetype = args.archetype
 decklists = os.listdir(archetype)
 mains = []
 sides = []
+mainSize = -1
 for deck in decklists:
-    main, side = parse(open(archetype + '/' + deck))
-    # for _ in range(int(deck[0])):
-    mains.append(main)
-    sides.append(side)
-main_aggregate = aggregate(mains, 80)
-print()
+    main, side, N = parse(open(archetype + '/' + deck))
+    if mainSize == -1:
+        mainSize = N
+    elif mainSize != N:
+        raise RuntimeError('Decklists with different sizes found in ' + archetype +
+        ', consider splitting 80-card decks and 60-card decks into different archetypes')
+    if args.weighted:
+        try:
+            weight = int(deck[0])
+        except ValueError:
+            print('Please specify the number of games won for each deck as the \
+                start of the filename when using weighted aggregation')
+    else:
+        weight = 1
+    for _ in range(weight):
+        mains.append(main)
+        sides.append(side)
+main_aggregate = aggregate(mains, mainSize)
 side_aggregate = aggregate(sides, 15)
 final = open(archetype + '.txt', 'w')
 writer(final, main_aggregate, side_aggregate)
